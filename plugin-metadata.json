@@ -1,0 +1,11 @@
+{
+    "name": "ruby_antiafk_plugin",
+    "alias": "ruby_antiafk",
+    "display_name": "Ruby Anti-Afk Plugin",
+    "description": "Anti-Afk",
+    "author": "Rybucus",
+    "url": "",
+    "log_tag": "RUBY_ANTIAFK_PLUGIN",
+    "license": "MIT",
+    "version": "1.0.0.{{git-shorthash}}"
+}
