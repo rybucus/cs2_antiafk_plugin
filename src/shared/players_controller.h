@@ -132,6 +132,15 @@ namespace Ruby
             }
         }
 
+        void RunForConnectedPlayer( CPlayerSlot Slot,
+            const std::function< void( IPlayersUtilities*, ::Ruby::CConnectedPlayer& ) >& Callback )
+        {
+            if ( Slot.Get( ) < 0 || Slot.Get( ) > 64 )
+                return;
+
+            Callback( m_pUtilities.get( ), m_ConnectedPlayers[ Slot.Get( ) ] );
+        }
+
         void RegisterPlayer( CPlayerSlot Slot )
         {
             m_ConnectedPlayers[ Slot.Get( ) ] = ::Ruby::CConnectedPlayer{ Slot };
@@ -153,6 +162,11 @@ namespace Ruby
             return iCount;
         }
 
+        void RegisterFrameCmd( const std::function< void( ) >& C )
+        {
+            m_FrameCmdsStack.push_back( C );
+        }
+
         void QueueConnectedPlayers( )
         {
             for ( const auto& ConnectedPlayer : m_ConnectedPlayers )
@@ -162,12 +176,12 @@ namespace Ruby
 
                 const auto pEntity = g_pCtx->m_Addresses.m_pGetBaseEntityBySlot.Call< CCSPlayerController* >( ConnectedPlayer.m_iSlot );
 
-                if ( pEntity )
+                if ( pEntity && !pEntity->IsBot( ) )
                 {
-                    auto it = m_UniquePlayers.find( pEntity->m_steamID );
+                    auto it = m_UniquePlayers.find( pEntity->m_steamID( ) );
 
                     if ( it == m_UniquePlayers.end( ) )
-                        m_UniquePlayers.insert_or_assign( pEntity->m_steamID, CPlayerData( ConnectedPlayer.m_iSlot, pEntity->m_steamID ) );
+                        m_UniquePlayers.insert_or_assign( pEntity->m_steamID( ), CPlayerData( ConnectedPlayer.m_iSlot, pEntity->m_steamID( ) ) );
                     else if ( auto& PlayerData = std::get<::Ruby::CPlayerData>( *it );
                         PlayerData.m_iDisconnectTick != TICK_NEVER_THINK )
                     {
@@ -175,8 +189,15 @@ namespace Ruby
                         PlayerData.m_Slot = ConnectedPlayer.m_iSlot;
                         PlayerData.m_iLastIteractTick = g_pCtx->GetGlobalVars( )->tickcount;
                     }
-                }
+                }   
             }
+
+            for ( const auto& Cmd : m_FrameCmdsStack )
+            {
+                Cmd( );
+            }
+
+            m_FrameCmdsStack.clear( );
         }
 
         void ServerPutPlayer( CPlayerSlot Slot )
@@ -190,9 +211,9 @@ namespace Ruby
 
             const auto pEntity = g_pCtx->m_Addresses.m_pGetBaseEntityBySlot.Call< CCSPlayerController* >( Slot );
 
-            if ( pEntity )
+            if ( pEntity && !pEntity->IsBot( ) )
             {
-                auto it = m_UniquePlayers.find( pEntity->m_steamID );
+                auto it = m_UniquePlayers.find( pEntity->m_steamID( ) );
 
                 if ( it != m_UniquePlayers.end( ) )
                     std::get< ::Ruby::CPlayerData >( *it ).Invalidate( );
@@ -204,7 +225,7 @@ namespace Ruby
             const auto pEntity = g_pCtx->m_Addresses.m_pGetBaseEntityBySlot.Call< CCSPlayerController* >( Slot );
 
             if ( pEntity )
-                m_UniquePlayers.erase( pEntity->m_steamID );
+                m_UniquePlayers.erase( pEntity->m_steamID( ) );
         }
 
         void EraseAllPlayers( )
@@ -214,8 +235,8 @@ namespace Ruby
 
     private:
 
+        std::vector< std::function< void( ) > >             m_FrameCmdsStack    { };
         std::array< ::Ruby::CConnectedPlayer, 65 >          m_ConnectedPlayers  { };
-
         std::unordered_map< UserId_t, ::Ruby::CPlayerData > m_UniquePlayers     { };
         std::unique_ptr< T >                                m_pUtilities        { };
 
